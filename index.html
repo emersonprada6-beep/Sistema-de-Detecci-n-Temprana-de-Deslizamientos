@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Profesional - Sistema de Detección Temprana</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0f2f5; }
+        .transition-all { transition: all 0.3s ease-in-out; }
+        /* Animación de pulso severo para alerta crítica */
+        @keyframes pulse-severe {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            50% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+        }
+        .animate-pulse-severe { animation: pulse-severe 2s infinite; }
+    </style>
+</head>
+<body class="text-gray-800 flex flex-col min-h-screen">
+
+    <!-- 1. Encabezado Principal -->
+    <header class="bg-[#132a1f] text-white border-b-4 border-[#2d5a43]">
+        <div class="container mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center gap-3">
+                <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide uppercase">Centro de Monitoreo LoRaWAN</h1>
+                    <p class="text-xs text-green-300">Sistema de Detección Temprana de Deslizamientos v2.0</p>
+                </div>
+            </div>
+            <div class="text-right mt-2 md:mt-0">
+                <p class="text-sm text-gray-300">Última actualización de red:</p>
+                <p class="text-sm font-mono text-green-400" id="lbl-ultima-act">Conectando...</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. Barra de Herramientas / Panel de Control -->
+    <div class="bg-white shadow-sm border-b border-gray-200">
+        <div class="container mx-auto px-4 py-3 flex flex-wrap gap-3 items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Acciones del Sistema:</span>
+            </div>
+            <div class="flex gap-3">
+                <!-- Botón Simular Alerta -->
+                <button onclick="SistemaMonitoreo.simularAlertaCritica()" class="flex items-center gap-2 bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 font-semibold py-1.5 px-4 rounded transition-all text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    Simular Alerta
+                </button>
+                <!-- Botón Restablecer -->
+                <button onclick="SistemaMonitoreo.restablecerSistema()" class="flex items-center gap-2 bg-gray-100 text-gray-700 hover:bg-[#2d5a43] hover:text-white border border-gray-300 font-semibold py-1.5 px-4 rounded transition-all text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Restablecer Sistema
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <main class="container mx-auto px-4 py-6 flex-grow flex flex-col gap-6">
+        
+        <!-- 3. Panel de Estado Global (Dinámico) -->
+        <div id="panel-estado-global" class="rounded-xl shadow-sm p-6 bg-white border-l-8 border-green-500 flex items-center justify-between transition-all">
+            <div class="flex items-center gap-4">
+                <div id="icono-estado-global" class="p-3 bg-green-100 rounded-full text-green-600">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Estado Global del Terreno (Macizo A)</h2>
+                    <p id="texto-estado-global" class="text-3xl font-black text-gray-800 mt-1">SEGURO - PARÁMETROS NORMALES</p>
+                    <p id="subtexto-estado-global" class="text-sm text-gray-500 mt-1">Monitoreo continuo activo. No se detectan anomalías en la zona de riesgo.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Cuadrícula de Nodos / Sensores -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <!-- Sensor de Inclinación -->
+            <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-xs font-bold text-gray-500 uppercase">Inclinómetro (IMU)</h4>
+                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded">NODO-01</span>
+                </div>
+                <div class="flex items-end gap-2 my-2">
+                    <div class="text-3xl font-bold text-gray-800 font-mono" id="val-inclinacion">1.02</div>
+                    <div class="text-gray-500 font-semibold mb-1">Grados</div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                    <div id="barra-inclinacion" class="bg-blue-500 h-1.5 rounded-full transition-all" style="width: 10%"></div>
+                </div>
+                <p class="text-xs text-gray-500" id="status-inclinacion">Eje X: 1.02° | Eje Y: 0.45°</p>
+            </div>
+
+            <!-- Sensor de Humedad -->
+            <div id="card-humedad" class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 relative overflow-hidden transition-all">
+                <div id="top-bar-humedad" class="absolute top-0 left-0 w-full h-1 bg-teal-500"></div>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-xs font-bold text-gray-500 uppercase">Humedad del Suelo</h4>
+                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded">NODO-02</span>
+                </div>
+                <div class="flex items-end gap-2 my-2">
+                    <div class="text-3xl font-bold text-gray-800 font-mono" id="val-humedad">35.4</div>
+                    <div class="text-gray-500 font-semibold mb-1">% Vol</div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                    <div id="barra-humedad" class="bg-teal-500 h-1.5 rounded-full transition-all" style="width: 35%"></div>
+                </div>
+                <p class="text-xs text-gray-500" id="status-humedad">Nivel estable. Terreno seco.</p>
+            </div>
+
+            <!-- Sensor de Vibración -->
+            <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-purple-500"></div>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-xs font-bold text-gray-500 uppercase">Geófono (Vibración)</h4>
+                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded">NODO-03</span>
+                </div>
+                <div class="flex items-end gap-2 my-2">
+                    <div class="text-3xl font-bold text-gray-800 font-mono" id="val-vibracion">0.05</div>
+                    <div class="text-gray-500 font-semibold mb-1">mm/s</div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                    <div id="barra-vibracion" class="bg-purple-500 h-1.5 rounded-full transition-all" style="width: 5%"></div>
+                </div>
+                <p class="text-xs text-gray-500" id="status-vibracion">Ruido de fondo normal.</p>
+            </div>
+
+            <!-- Telemetría (Batería y Señal) -->
+            <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gray-800"></div>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-xs font-bold text-gray-500 uppercase">Telemetría Red</h4>
+                    <span class="text-[10px] font-mono bg-green-100 text-green-800 px-2 py-1 rounded">ONLINE</span>
+                </div>
+                
+                <div class="flex justify-between items-center text-sm border-b border-gray-100 pb-2 mb-2">
+                    <span class="text-gray-600 flex items-center gap-1">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.906 14.142 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
+                        RSSI LoRaWAN
+                    </span>
+                    <span class="font-mono font-bold text-gray-800">-85 dBm</span>
+                </div>
+                
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-600 flex items-center gap-1">
+                        <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Batería Solar
+                    </span>
+                    <span class="font-mono font-bold text-green-600">4.1V (98%)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Registro Histórico de Eventos -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-grow flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Bitácora de Eventos y Alertas</h3>
+                <span class="text-xs text-gray-500 font-mono">Total registros: <span id="contador-eventos">2</span></span>
+            </div>
+            <div class="overflow-y-auto flex-grow max-h-64">
+                <table class="min-w-full leading-normal">
+                    <thead>
+                        <tr class="bg-white text-gray-500 text-left text-xs uppercase font-semibold border-b border-gray-200">
+                            <th class="px-6 py-3 sticky top-0 bg-white">Fecha / Hora</th>
+                            <th class="px-6 py-3 sticky top-0 bg-white">Tipo</th>
+                            <th class="px-6 py-3 sticky top-0 bg-white">Nodo Origen</th>
+                            <th class="px-6 py-3 sticky top-0 bg-white w-1/2">Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-alertas" class="text-sm font-mono">
+                        <!-- Los registros se insertarán aquí dinámicamente mediante JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Script Principal: Lógica Modular y Control de Estado -->
+    <script>
+        /**
+         * OBJETO PRINCIPAL DEL DASHBOARD: SistemaMonitoreo
+         * Esta estructura separa los datos de la interfaz visual.
+         * Es ideal para integrar con Firebase, MQTT o una API REST.
+         */
+        const SistemaMonitoreo = {
+            
+            // 1. ESTADO CENTRAL (La "Base de Datos" local temporal)
+            estadoActual: 'SEGURO', // Puede ser: 'SEGURO', 'ADVERTENCIA', 'CRITICO'
+            datosSensores: {
+                inclinacion: 1.02,
+                humedad: 35.4,
+                vibracion: 0.05
+            },
+            eventos: [
+                { hora: 'Hace 1 hora', tipo: 'INFO', nodo: 'GATEWAY', mensaje: 'Sincronización de reloj LoRaWAN completada exitosamente.' },
+                { hora: 'Hace 5 horas', tipo: 'WARN', nodo: 'NODO-02', mensaje: 'Ligero aumento de humedad por rocío matutino. Dentro de parámetros.' }
+            ],
+
+            // 2. FUNCIÓN DE INICIALIZACIÓN
+            init() {
+                this.actualizarReloj();
+                this.renderizarInterfaz();
+                this.renderizarTablaEventos();
+                
+                // === ZONA DE INTEGRACIÓN BASE DE DATOS ===
+                // Aquí debes llamar a tu función de conexión real en el futuro.
+                // this.conectarFirebase(); 
+                // this.iniciarPollingAPI();
+                // =========================================
+            },
+
+            // 3. FUNCIONES DE ACTUALIZACIÓN VISUAL (Mapean los datos a la pantalla)
+            renderizarInterfaz() {
+                // Actualizar tarjetas de sensores
+                document.getElementById('val-inclinacion').innerText = this.datosSensores.inclinacion.toFixed(2);
+                document.getElementById('barra-inclinacion').style.width = Math.min((this.datosSensores.inclinacion / 10) * 100, 100) + '%';
+
+                document.getElementById('val-humedad').innerText = this.datosSensores.humedad.toFixed(1);
+                document.getElementById('barra-humedad').style.width = Math.min(this.datosSensores.humedad, 100) + '%';
+
+                document.getElementById('val-vibracion').innerText = this.datosSensores.vibracion.toFixed(2);
+                document.getElementById('barra-vibracion').style.width = Math.min((this.datosSensores.vibracion / 2) * 100, 100) + '%';
+
+                // Lógica de colores según el Estado Global
+                const panelGlobal = document.getElementById('panel-estado-global');
+                const textoGlobal = document.getElementById('texto-estado-global');
+                const subtextoGlobal = document.getElementById('subtexto-estado-global');
+                const iconoGlobal = document.getElementById('icono-estado-global');
+                const cardHumedad = document.getElementById('card-humedad');
+                const topBarHumedad = document.getElementById('top-bar-humedad');
+                const barraHumedad = document.getElementById('barra-humedad');
+
+                // Resetear clases previas
+                panelGlobal.className = "rounded-xl shadow-sm p-6 flex items-center justify-between transition-all bg-white border-l-8";
+                panelGlobal.classList.remove('animate-pulse-severe');
+                cardHumedad.className = "bg-white rounded-lg shadow-sm p-4 border relative overflow-hidden transition-all";
+
+                if (this.estadoActual === 'SEGURO') {
+                    panelGlobal.classList.add('border-green-500');
+                    iconoGlobal.className = "p-3 bg-green-100 rounded-full text-green-600";
+                    iconoGlobal.innerHTML = `<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                    textoGlobal.innerText = "SEGURO - PARÁMETROS NORMALES";
+                    textoGlobal.className = "text-3xl font-black text-gray-800 mt-1";
+                    subtextoGlobal.innerText = "Monitoreo continuo activo. No se detectan anomalías en la zona de riesgo.";
+                    
+                    // Restaurar tarjeta humedad
+                    cardHumedad.classList.add('border-gray-100');
+                    topBarHumedad.className = "absolute top-0 left-0 w-full h-1 bg-teal-500";
+                    barraHumedad.className = "bg-teal-500 h-1.5 rounded-full transition-all";
+                    document.getElementById('status-humedad').innerText = "Nivel estable. Terreno seco.";
+                    document.getElementById('status-humedad').className = "text-xs text-gray-500";
+                    document.getElementById('val-humedad').className = "text-3xl font-bold text-gray-800 font-mono";
+
+                } else if (this.estadoActual === 'CRITICO') {
+                    panelGlobal.classList.add('border-red-600', 'bg-red-50', 'animate-pulse-severe');
+                    iconoGlobal.className = "p-3 bg-red-200 rounded-full text-red-700 animate-bounce";
+                    iconoGlobal.innerHTML = `<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+                    textoGlobal.innerText = "PELIGRO INMINENTE DE DESLIZAMIENTO";
+                    textoGlobal.className = "text-3xl font-black text-red-700 mt-1";
+                    subtextoGlobal.innerText = "EVACUACIÓN REQUERIDA. Variables fuera de rango crítico de seguridad.";
+                    
+                    // Modificar tarjeta humedad (culpable de la alerta simulada)
+                    cardHumedad.classList.add('border-red-500', 'bg-red-50');
+                    topBarHumedad.className = "absolute top-0 left-0 w-full h-1 bg-red-600";
+                    barraHumedad.className = "bg-red-600 h-1.5 rounded-full transition-all";
+                    document.getElementById('status-humedad').innerText = "¡SATURACIÓN CRÍTICA DEL SUELO!";
+                    document.getElementById('status-humedad').className = "text-xs text-red-600 font-bold";
+                    document.getElementById('val-humedad').className = "text-3xl font-bold text-red-700 font-mono";
+                }
+            },
+
+            renderizarTablaEventos() {
+                const tbody = document.getElementById('tabla-alertas');
+                tbody.innerHTML = ''; // Limpiar tabla
+                
+                document.getElementById('contador-eventos').innerText = this.eventos.length;
+
+                this.eventos.forEach(evento => {
+                    let colorTipo = 'bg-blue-100 text-blue-800'; // Default INFO
+                    if (evento.tipo === 'WARN') colorTipo = 'bg-yellow-100 text-yellow-800';
+                    if (evento.tipo === 'CRIT') colorTipo = 'bg-red-100 text-red-800 font-bold animate-pulse';
+
+                    const fila = document.createElement('tr');
+                    fila.className = "hover:bg-gray-50 border-b border-gray-100 transition-colors";
+                    fila.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-600">${evento.hora}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 rounded text-[10px] ${colorTipo}">${evento.tipo}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-semibold">${evento.nodo}</td>
+                        <td class="px-6 py-4 text-gray-700">${evento.mensaje}</td>
+                    `;
+                    tbody.appendChild(fila);
+                });
+            },
+
+            // 4. LÓGICA DE NEGOCIO (Botones de Control)
+            simularAlertaCritica() {
+                if(this.estadoActual === 'CRITICO') return;
+                
+                // 1. Alterar los datos
+                this.estadoActual = 'CRITICO';
+                this.datosSensores.humedad = 88.5; // Sube drásticamente
+                this.datosSensores.vibracion = 1.2; // Ligero temblor
+                this.datosSensores.inclinacion = 4.5; // Movimiento de tierra
+                
+                // 2. Registrar el evento (Agregando al inicio del array)
+                const horaActual = new Date().toLocaleTimeString('es-CO');
+                this.eventos.unshift({
+                    hora: horaActual,
+                    tipo: 'CRIT',
+                    nodo: 'NODO-02, NODO-01',
+                    mensaje: 'ALERTA AUTOMÁTICA: Umbrales de humedad e inclinación superados simultáneamente. Riesgo de licuefacción.'
+                });
+
+                // 3. Actualizar pantalla
+                this.renderizarInterfaz();
+                this.renderizarTablaEventos();
+                this.actualizarReloj();
+            },
+
+            restablecerSistema() {
+                if(this.estadoActual === 'SEGURO') return;
+
+                // 1. Restaurar valores base
+                this.estadoActual = 'SEGURO';
+                this.datosSensores.humedad = 35.4;
+                this.datosSensores.vibracion = 0.05;
+                this.datosSensores.inclinacion = 1.02;
+
+                // 2. Registrar evento de reseteo
+                const horaActual = new Date().toLocaleTimeString('es-CO');
+                this.eventos.unshift({
+                    hora: horaActual,
+                    tipo: 'INFO',
+                    nodo: 'SISTEMA/ADMIN',
+                    mensaje: 'Sistema restablecido a parámetros normales por el operador.'
+                });
+
+                // 3. Actualizar pantalla
+                this.renderizarInterfaz();
+                this.renderizarTablaEventos();
+            },
+
+            // Utilidades
+            actualizarReloj() {
+                const ahora = new Date().toLocaleTimeString('es-CO');
+                document.getElementById('lbl-ultima-act').innerText = ahora;
+            },
+
+            // =========================================================================
+            //  FUTURAS FUNCIONES PARA CONEXIÓN REAL A BASE DE DATOS (NO ACTIVAS AÚN)
+            // =========================================================================
+            /*
+            conectarFirebase() {
+                // Ejemplo de cómo se conectaría
+                const dbRef = firebase.database().ref('sensores/macizoA');
+                dbRef.on('value', (snapshot) => {
+                    const datos = snapshot.val();
+                    
+                    // Actualizar el estado central
+                    this.datosSensores.humedad = datos.nodo2.humedad;
+                    this.datosSensores.inclinacion = datos.nodo1.inclinacion;
+                    
+                    // Evaluar umbrales reales
+                    if(this.datosSensores.humedad > 80) {
+                        this.estadoActual = 'CRITICO';
+                        // Generar evento...
+                    }
+
+                    // Refrescar pantalla automáticamente
+                    this.renderizarInterfaz();
+                    this.actualizarReloj();
+                });
+            }
+            */
+        };
+
+        // Arrancar el sistema cuando la página HTML haya cargado completamente
+        document.addEventListener('DOMContentLoaded', () => {
+            SistemaMonitoreo.init();
+            
+            // Simular un "latido" (heartbeat) de actualización cada minuto
+            setInterval(() => {
+                if(SistemaMonitoreo.estadoActual !== 'CRITICO') {
+                    SistemaMonitoreo.actualizarReloj();
+                }
+            }, 60000);
+        });
+    </script>
+</body>
+</html>
